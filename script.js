@@ -1,7 +1,9 @@
 // Get the canvas and context
 var canvas = document.getElementById("canvas");
-var context = canvas.getContext("2d");
-const nice = document.getElementById("nice");
+var context = canvas.getContext("2d", {
+  willReadFrequently: true,
+});
+const tooltip = document.getElementById("tooltip");
 const img = document.getElementById("img");
 const box = document.getElementById("box");
 
@@ -17,8 +19,9 @@ img.onload = function () {
   // Set the canvas size to match the image size
   canvas.width = img.width;
   canvas.height = img.height;
-  aspectRatio =
-    img.width > img.height ? img.width / img.height : img.height / img.width;
+  const highestImgValue = Math.max(img.width, img.height);
+  const lowestImgValue = Math.min(img.width, img.height);
+  aspectRatio = highestImgValue / lowestImgValue;
 
   // Draw the image on the canvas
   context.drawImage(
@@ -41,25 +44,62 @@ window.addEventListener("resize", () => {
 
 // Add a mousemove event listener to the canvas
 canvas.addEventListener("mousemove", function (event) {
-  const { canvasWidth, canvasHeight } = setCanvasSize(box, img, canvas);
+  const { canvasWidth, canvasHeight } = setCanvasSize(
+    box,
+    img,
+    canvas,
+    aspectRatio
+  );
 
-  var rect = canvas.getBoundingClientRect();
-  var x = event.clientX - rect.left;
-  var y = event.clientY - rect.top;
-
-  const xMultiplier = img.width / canvasWidth;
-  const yMultiplier = img.height / canvasHeight;
+  // Get current canvas width and height
+  const rect = canvas.getBoundingClientRect();
+  // Get the mouse coordinates
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const imgWidth = img.width;
+  const imgHeight = img.height;
+  // Calculate the coordinates of the mouse relative to the image
+  const xMultiplier = imgWidth / canvasWidth;
+  const yMultiplier = imgHeight / canvasHeight;
+  // Get the new coordinates relative to the img size
   const newX = x * xMultiplier;
   const newY = y * yMultiplier;
+  const boxWidth = box.offsetWidth;
+  const boxHeight = box.offsetHeight;
 
   // Get the color of the pixel at the mouse coordinates
-  var pixel = context.getImageData(newX, newY, 1, 1).data;
+  const pixel = context.getImageData(newX, newY, 1, 1).data;
 
-  const captionPosX = x + 10;
-  const captionPosY = y + 10;
-  nice.style.transform = `translate(${captionPosX}px, ${captionPosY}px)`;
-  nice.textContent = `R: ${pixel[0]}, G: ${pixel[1]}, B: ${pixel[2]}`;
-  nice.style.backgroundColor = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+  if (tooltip) {
+    // Width of tooltip element.
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    // Calculate the luminance of the pixel.
+    const luminance =
+      (pixel[0] / 255) * 0.2126 +
+      (pixel[1] / 255) * 0.7152 +
+      (pixel[2] / 255) * 0.0722;
+
+    tooltip.style.backgroundColor = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+    tooltip.style.color = luminance > 0.5 ? "black" : "white";
+    tooltip.innerHTML = `Image of trees. </br> Red:${pixel[0]}, Green: ${pixel[1]}, Blue: ${pixel[2]}`;
+
+    const tooltipPosOffsetX = 20;
+    const tooltipPosOffsetY = 24;
+
+    tooltip.style.transform = `translate(${
+      // If the tooltip would overflow the image element, it snaps to the right side of the image element.
+      // We use 20px and 24 to prevent the tooltip from being too close to the mouse.
+      x + tooltipPosOffsetX + tooltipWidth > boxWidth
+        ? boxWidth - tooltipWidth - 1
+        : x + tooltipPosOffsetX
+      //
+    }px,${
+      y + tooltipPosOffsetY + tooltipHeight > boxHeight
+        ? boxHeight - tooltipHeight - 1
+        : y + tooltipPosOffsetY
+    }px)`;
+  }
 });
 
 function setCanvasSize(box, img, canvas, aspectRatio) {
